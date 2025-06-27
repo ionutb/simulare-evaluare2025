@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8" />
+  <title>Bacalaureat 2025 Brasov</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f9f9f9;
+      margin: 0;
+      padding: 2rem;
+      display: flex;
+      justify-content: center;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 700px;
+      background: white;
+      padding: 2rem;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+
+    h2 {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .filters {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      align-items: center;
+      margin-bottom: 2rem;
+    }
+
+    label {
+      font-weight: bold;
+    }
+
+    select {
+      padding: 0.5rem;
+      font-size: 1rem;
+      min-width: 250px;
+    }
+
+    canvas {
+      max-width: 100%;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Bacalaureat 2025 Brasov</h2>
+
+    <div class="filters">
+      <label>
+        Unitate:
+        <select id="unitateDropdown">
+          <option value="">Toate</option>
+        </select>
+      </label>
+
+      <label>
+        Specializare:
+        <select id="specializareDropdown">
+          <option value="">Toate</option>
+        </select>
+      </label>
+    </div>
+
+    <canvas id="chart"></canvas>
+  </div>
+
+  <script>
+    let allData = [];
+    let chart;
+
+    async function fetchData() {
+      const response = await fetch("data.json");
+      const raw = await response.json();
+
+      const headers = raw[0];
+      const rows = raw.slice(1);
+
+      const idxUnitate = headers.indexOf("Unitatea de învăţământ");
+      const idxSpecializare = headers.indexOf("Specializare");
+      const idxMedia = headers.indexOf("Media");
+      const idxRezultat = headers.indexOf("Rezultatul final");
+
+      const parsed = rows
+        .map(row => {
+          const unitate = row[idxUnitate];
+          const specializare = row[idxSpecializare];
+          const rezultat = (row[idxRezultat] || "").toLowerCase();
+          let media = parseFloat(row[idxMedia]);
+
+          if (rezultat.includes("respins")) {
+            media = 3;
+          } else if (!rezultat.includes("reusit")) {
+            media = 0;
+          } else if (isNaN(media)) {
+            media = 0; // fallback
+          }
+
+          return { unitate, specializare, media };
+        })
+        .filter(r => r.unitate && r.unitate.endsWith("Brașov"));
+
+      allData = parsed;
+
+      populateDropdowns(parsed);
+      updateChart();
+    }
+
+    function populateDropdowns(data) {
+      const unitDropdown = document.getElementById("unitateDropdown");
+      const specDropdown = document.getElementById("specializareDropdown");
+
+      const unitStats = {};
+      data.forEach(({ unitate, media }) => {
+        if (!unitStats[unitate]) {
+          unitStats[unitate] = { total: 0, peste9: 0 };
+        }
+        unitStats[unitate].total++;
+        if (media >= 9) unitStats[unitate].peste9++;
+      });
+
+      const sortedUnitati = Object.entries(unitStats)
+        .map(([nume, stats]) => ({
+          nume,
+          procent: (stats.peste9 / stats.total) * 100
+        }))
+        .sort((a, b) => b.procent - a.procent);
+
+      unitDropdown.innerHTML = '<option value="">Toate</option>';
+      sortedUnitati.forEach(unit => {
+        const opt = document.createElement("option");
+        opt.value = unit.nume;
+        opt.textContent = unit.nume; //`${unit.nume} – ${unit.procent.toFixed(1)}% peste 9`;
+        unitDropdown.appendChild(opt);
+      });
+
+      unitDropdown.addEventListener("change", () => {
+        const selectedUnit = unitDropdown.value;
+        specDropdown.innerHTML = '<option value="">Toate</option>';
+
+        const specializari = [...new Set(
+          allData
+            .filter(d => !selectedUnit || d.unitate === selectedUnit)
+            .map(d => d.specializare)
+        )].sort();
+
+        specializari.forEach(spec => {
+          const opt = document.createElement("option");
+          opt.value = spec;
+          opt.textContent = spec;
+          specDropdown.appendChild(opt);
+        });
+
+        updateChart();
+      });
+
+      specDropdown.addEventListener("change", updateChart);
+    }
+
+    function updateChart() {
+      const unitate = document.getElementById("unitateDropdown").value;
+      const specializare = document.getElementById("specializareDropdown").value;
+
+      const filtered = allData.filter(d =>
+        (!unitate || d.unitate === unitate) &&
+        (!specializare || d.specializare === specializare)
+      );
+
+      const intervals = Array(10).fill(0);
+
+      filtered.forEach(({ media }) => {
+        const index = Math.min(Math.floor(media), 9);
+        intervals[index]++;
+      });
+
+      const labels = [
+        'Neprezentat', '1-2', '2–3', 'Respins', '4–5',
+        '5–6', '6–7', '7–8', '8–9', '9–10'
+      ];
+
+      const colors = [
+        '#8e0000', // 0–1: maro roșcat închis
+        '#c62828', // 1–2: roșu închis
+        '#ef5350', // 2–3: roșu
+        '#e57373', // 3–4: roșu deschis
+        '#fb8c00', // 4–5: portocaliu închis
+        '#ffb74d', // 5–6: portocaliu
+        '#fff176', // 6–7: galben
+        '#dce775', // 7–8: galben-verzui
+        '#66bb6a', // 8–9: verde deschis
+        '#1b5e20'  // 9–10: verde închis
+      ];
+
+      const ctx = document.getElementById("chart").getContext("2d");
+      if (chart) chart.destroy();
+
+      chart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: intervals,
+            backgroundColor: colors,
+            borderColor: "#fff",
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            datalabels: {
+              color: '#fff',
+              font: {
+                weight: 'bold',
+                size: 14
+              },
+              formatter: (value, context) => {
+                if (value === 0) return '';
+                const total = context.chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
+                const percent = ((value / total) * 100).toFixed(1);
+                return `${value} elevi\n${percent}%`;
+              }
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const val = context.raw;
+                  const label = context.label;
+                  return `${label}: ${val} elevi`;
+                }
+              }
+            },
+            legend: {
+              position: 'bottom'
+            },
+            title: {
+              display: true,
+              text: 'Distribuția mediilor pe intervale'
+            }
+          }
+        },
+        plugins: [ChartDataLabels]
+      });
+    }
+
+    fetchData();
+  </script>
+</body>
+</html>
