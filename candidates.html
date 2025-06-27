@@ -8,28 +8,57 @@
       font-family: Arial, sans-serif;
       background: #f4f4f4;
       padding: 20px;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+    }
+    .container {
+      position: relative;
+      max-width: 700px;
+      width: 100%;
+      background: white;
+      padding: 20px 40px 20px 20px; /* spațiu pe dreapta pentru link */
+      border-radius: 12px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    a.back-link {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      text-decoration: none;
+      color: #000;          /* negru */
+      font-weight: bold;
+      font-size: 0.9rem;
+      background: #eee;
+      padding: 6px 12px;
+      border-radius: 6px;
+      transition: background-color 0.2s, color 0.2s;
+    }
+    a.back-link:hover {
+      background-color: #333;  /* închis la hover */
+      color: #fff;             /* alb la hover */
+      text-decoration: none;
     }
     h1 {
       text-align: center;
       color: #333;
-    }
-    .container {
-      max-width: 700px;
-      margin: 0 auto;
-      background: white;
-      padding: 20px;
-      border-radius: 12px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      margin-top: 0;
+      margin-bottom: 30px;
     }
     label {
       font-weight: bold;
+      display: block;
+      margin-top: 10px;
+      margin-bottom: 5px;
     }
     input[type="number"],
     select {
       width: 100%;
       padding: 10px;
-      margin: 10px 0 20px 0;
+      margin-bottom: 20px;
       font-size: 1rem;
+      box-sizing: border-box;
     }
     button {
       padding: 10px 20px;
@@ -39,12 +68,14 @@
       font-size: 1rem;
       border-radius: 6px;
       cursor: pointer;
+      display: block;
+      margin: 0 auto 20px auto;
     }
     button:hover {
       background: #0056b3;
     }
     .result {
-      margin-top: 20px;
+      margin-top: 10px;
     }
     .item {
       background: #eef;
@@ -59,6 +90,8 @@
 </head>
 <body>
   <div class="container">
+    <a href="index.html" class="back-link">← Înapoi</a>
+
     <h1>Ce licee ți se potrivesc?</h1>
 
     <label for="year">Selectează anul:</label>

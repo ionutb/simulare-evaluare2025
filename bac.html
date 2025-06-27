@@ -16,12 +16,31 @@
     }
 
     .container {
+      position: relative; /* pentru poziționare absolută link */
       width: 100%;
       max-width: 700px;
       background: white;
       padding: 2rem;
       border-radius: 8px;
       box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .back-link {
+      position: absolute;
+      top: 20px;
+      right: 30px;
+      text-decoration: none;
+      color: #333;
+      font-weight: bold;
+      background: #eee;
+      padding: 6px 12px;
+      border-radius: 4px;
+      transition: background 0.2s;
+      user-select: none;
+    }
+
+    .back-link:hover {
+      background: #ccc;
     }
 
     h2 {
@@ -60,6 +79,8 @@
 </head>
 <body>
   <div class="container">
+    <a href="index.html" class="back-link">⟵ Înapoi</a>
+
     <h2>Bacalaureat 2025 Brasov</h2>
 
     <div class="filters">
