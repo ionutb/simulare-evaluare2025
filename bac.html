@@ -50,6 +50,12 @@
     canvas {
       max-width: 100%;
     }
+
+    #totalElevi {
+      text-align: center;
+      margin-top: 1rem;
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
@@ -73,6 +79,7 @@
     </div>
 
     <canvas id="chart"></canvas>
+    <p id="totalElevi"></p>
   </div>
 
   <script>
@@ -103,7 +110,7 @@
           } else if (!rezultat.includes("reusit")) {
             media = 0;
           } else if (isNaN(media)) {
-            media = 0; // fallback
+            media = 0;
           }
 
           return { unitate, specializare, media };
@@ -140,8 +147,17 @@
       sortedUnitati.forEach(unit => {
         const opt = document.createElement("option");
         opt.value = unit.nume;
-        opt.textContent = unit.nume; //`${unit.nume} – ${unit.procent.toFixed(1)}% peste 9`;
+        opt.textContent = unit.nume;
         unitDropdown.appendChild(opt);
+      });
+
+      // populate all specializari initially
+      const specializari = [...new Set(data.map(d => d.specializare))].sort();
+      specializari.forEach(spec => {
+        const opt = document.createElement("option");
+        opt.value = spec;
+        opt.textContent = spec;
+        specDropdown.appendChild(opt);
       });
 
       unitDropdown.addEventListener("change", () => {
@@ -176,29 +192,40 @@
         (!specializare || d.specializare === specializare)
       );
 
-      const intervals = Array(10).fill(0);
+      const intervals = [0, 0, 0, 0, 0, 0];
 
       filtered.forEach(({ media }) => {
-        const index = Math.min(Math.floor(media), 9);
-        intervals[index]++;
+        if (media === 0) {
+          intervals[0]++;
+        } else if (media < 6) {
+          intervals[1]++;
+        } else if (media < 7) {
+          intervals[2]++;
+        } else if (media < 8) {
+          intervals[3]++;
+        } else if (media < 9) {
+          intervals[4]++;
+        } else {
+          intervals[5]++;
+        }
       });
 
       const labels = [
-        'Neprezentat', '1-2', '2–3', 'Respins', '4–5',
-        '5–6', '6–7', '7–8', '8–9', '9–10'
+        'Neprezentat',
+        'Respins',
+        '6–7',
+        '7–8',
+        '8–9',
+        '9–11'
       ];
 
       const colors = [
-        '#8e0000', // 0–1: maro roșcat închis
-        '#c62828', // 1–2: roșu închis
-        '#ef5350', // 2–3: roșu
-        '#e57373', // 3–4: roșu deschis
-        '#fb8c00', // 4–5: portocaliu închis
-        '#ffb74d', // 5–6: portocaliu
-        '#fff176', // 6–7: galben
-        '#dce775', // 7–8: galben-verzui
-        '#66bb6a', // 8–9: verde deschis
-        '#1b5e20'  // 9–10: verde închis
+        '#8e0000', // Neprezentat
+        '#e57373', // Respins
+        '#fff176', // 6–7
+        '#dce775', // 7–8
+        '#66bb6a', // 8–9
+        '#1b5e20'  // 9–11
       ];
 
       const ctx = document.getElementById("chart").getContext("2d");
@@ -251,6 +278,14 @@
         },
         plugins: [ChartDataLabels]
       });
+
+      const totalElevi = filtered.length;
+      let text = `Total elevi selectați: ${totalElevi}`;
+      if (totalElevi > 0) {
+        const medieGenerala = (filtered.reduce((sum, e) => sum + e.media, 0) / totalElevi).toFixed(2);
+        text += ` | Media generală: ${medieGenerala}`;
+      }
+      document.getElementById("totalElevi").textContent = text;
     }
 
     fetchData();

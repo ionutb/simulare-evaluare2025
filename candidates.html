@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8">
+  <title>Simulare Admitere Liceu</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+      padding: 20px;
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+    }
+    .container {
+      max-width: 700px;
+      margin: 0 auto;
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    label {
+      font-weight: bold;
+    }
+    input[type="number"],
+    select {
+      width: 100%;
+      padding: 10px;
+      margin: 10px 0 20px 0;
+      font-size: 1rem;
+    }
+    button {
+      padding: 10px 20px;
+      background: #007bff;
+      border: none;
+      color: white;
+      font-size: 1rem;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    .result {
+      margin-top: 20px;
+    }
+    .item {
+      background: #eef;
+      margin-bottom: 10px;
+      padding: 10px;
+      border-radius: 8px;
+    }
+    .item b {
+      color: #004080;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Ce licee ți se potrivesc?</h1>
+
+    <label for="year">Selectează anul:</label>
+    <select id="year" onchange="loadCandidates()">
+      <option value="2022">2022</option>
+      <option value="2023">2023</option>
+      <option value="2024" selected>2024</option>
+      <option value="2025">2025</option>
+    </select>
+
+    <label for="average">Introdu media ta de admitere:</label>
+    <input type="number" step="0.01" id="average" placeholder="ex: 8.50">
+    <button onclick="filterSchools()">Caută</button>
+
+    <div class="result" id="results"></div>
+  </div>
+
+  <script>
+    let candidatesData = [];
+
+    function loadCandidates() {
+      const year = document.getElementById('year').value;
+      const fileName = `candidates${year}.json`;
+
+      const output = document.getElementById('results');
+      output.innerHTML = '<p>Se încarcă datele...</p>';
+
+      fetch(fileName)
+        .then(response => {
+          if (!response.ok) throw new Error(`Nu s-a putut încărca ${fileName}`);
+          return response.json();
+        })
+        .then(data => {
+          candidatesData = data;
+
+          const mediiAdmitere = data.map(e => parseFloat(e.madm)).filter(m => !isNaN(m));
+          const mediiMate = data.map(e => parseFloat(e.nmate)).filter(m => !isNaN(m));
+          const mediiRom = data.map(e => parseFloat(e.nro)).filter(m => !isNaN(m));
+          const mediiGen = data.map(e => parseFloat(e.mabs)).filter(m => !isNaN(m));
+
+          const mediaGenerala = mediiAdmitere.reduce((a, b) => a + b, 0) / mediiAdmitere.length;
+          const mediaMate = mediiMate.reduce((a, b) => a + b, 0) / mediiMate.length;
+          const mediaRom = mediiRom.reduce((a, b) => a + b, 0) / mediiRom.length;
+          const mediaAbsolvire = mediiGen.reduce((a, b) => a + b, 0) / mediiGen.length;
+
+          output.innerHTML = `
+            <p>Datele au fost încărcate. Introdu o medie și apasă "Caută".</p>
+            <p><b>Statistici pentru anul ${year}:</b></p>
+            <ul>
+              <li><b>Media generală de admitere:</b> ${mediaGenerala.toFixed(2)}</li>              
+              <li><b>Media la Română:</b> ${mediaRom.toFixed(2)}</li>
+              <li><b>Media la Matematică:</b> ${mediaMate.toFixed(2)}</li>
+              <li><b>Media generală de absolvire:</b> ${mediaAbsolvire.toFixed(2)}</li>
+            </ul>
+          `;
+        })
+        .catch(error => {
+          output.innerHTML = `<p style="color:red">Eroare la încărcare: ${error.message}</p>`;
+        });
+    }
+
+    function filterSchools() {
+      const input = parseFloat(document.getElementById('average').value);
+      const output = document.getElementById('results');
+
+      if (isNaN(input)) {
+        output.innerHTML = "<p style='color:red'>Te rugăm să introduci o medie validă.</p>";
+        return;
+      }
+
+      const grouped = {};
+
+      candidatesData.forEach(entry => {
+        const key = entry.h + '|' + entry.sp;
+        const madm = parseFloat(entry.madm);
+
+        if (!grouped[key]) {
+          grouped[key] = {
+            h: entry.h,
+            sp: entry.sp,
+            minMadm: madm
+          };
+        } else if (madm < grouped[key].minMadm) {
+          grouped[key].minMadm = madm;
+        }
+      });
+
+      const resultArray = Object.values(grouped)
+        .filter(group => group.minMadm <= input)
+        .sort((a, b) => b.minMadm - a.minMadm);
+
+      if (resultArray.length === 0) {
+        output.innerHTML = "<p>Nu există licee unde te-ai încadra cu această medie.</p>";
+        return;
+      }
+
+      output.innerHTML = `<p><b>Rezultate pentru media ${input.toFixed(2)}:</b></p>`;
+      resultArray.forEach(group => {
+        const div = document.createElement('div');
+        div.className = 'item';
+        div.innerHTML = `
+          <div><b>Liceu:</b> ${group.h}</div>
+          <div><b>Specializare:</b> ${group.sp}</div>
+          <div><b>Ultima medie de intrare:</b> ${group.minMadm.toFixed(2)}</div>
+        `;
+        output.appendChild(div);
+      });
+    }
+
+    // Load initial data for default year (2024)
+    loadCandidates();
+  </script>
+</body>
+</html>
