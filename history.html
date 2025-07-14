@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8" />
+  <title>Poziția ultimului admis pe ani - liceu și specializare</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    body > div.container {
+      background: white;
+      padding: 20px 30px;
+      box-shadow: 0 0 12px rgba(0,0,0,0.1);
+      border-radius: 8px;
+      max-width: 900px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    h2 {
+      margin-top: 0;
+      margin-bottom: 15px;
+      text-align: center;
+    }
+    #filters {
+      margin-bottom: 15px;
+      width: 100%;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 12px;
+    }
+    label {
+      font-weight: bold;
+      margin-right: 6px;
+      white-space: nowrap;
+    }
+    select {
+      min-width: 180px;
+      padding: 5px 8px;
+      font-size: 14px;
+    }
+    button {
+      padding: 6px 14px;
+      font-size: 14px;
+      cursor: pointer;
+      border: none;
+      border-radius: 4px;
+      background-color: #36a2eb;
+      color: white;
+      transition: background-color 0.3s;
+    }
+    button:hover {
+      background-color: #2a82c9;
+    }
+    #activeFilters {
+      width: 100%;
+      min-height: 30px;
+      background: #eef6ff;
+      border: 1px solid #99c2ff;
+      padding: 8px 10px;
+      border-radius: 4px;
+      font-size: 14px;
+      color: #2a4365;
+      margin-bottom: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      user-select: none;
+    }
+    #activeFilters span {
+      background: #36a2eb;
+      color: white;
+      padding: 4px 10px;
+      border-radius: 3px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    #activeFilters span:hover {
+      background: #2a82c9;
+    }
+    canvas {
+      max-width: 100%;
+      height: 400px !important;
+      border: 1px solid #ccc;
+      padding: 10px;
+      background: white;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Poziția ultimului admis pe ani - liceu și specializare</h2>
+
+    <div id="filters">
+      <label for="liceuSelect">Liceu:</label>
+      <select id="liceuSelect"><option value="">-- Selectează liceul --</option></select>
+
+      <!-- <label for="specializareSelect">Specializare:</label> -->
+      <select id="specializareSelect"><option value="">-- Selectează specializarea --</option></select>
+
+      <button id="addFilterBtn">Adaugă filtru</button>
+      <button id="clearFiltersBtn">Curăță filtre</button>
+    </div>
+
+    <div>
+      <strong>Filtre active:</strong>
+      <div id="activeFilters" title="Click pe un filtru pentru a-l elimina">Niciun filtru activ.</div>
+    </div>
+
+    <canvas id="rankingChart"></canvas>
+  </div>
+
+
+  <script>
+    const years = [2022, 2023, 2024];
+    const files = ['candidates2022.json', 'candidates2023.json', 'candidates2024.json'];
+
+    let rawDataPerYear = {};
+    let rankedDataPerYear = {}; // pentru fiecare an, lista sortata + indexuri
+
+    const liceeSet = new Set();
+    const specializariSet = new Set();
+
+    // Map liceu => Map an => Set specializari
+    const liceuAnSpecializariMap = new Map();
+
+    let activeFilters = [];
+
+    function extractLiceuFromH(h) {
+      if (!h) return '';
+      const match = h.match(/<b>(.*?)<\/b>/i);
+      return match ? match[1].trim() : h.replace(/<[^>]+>/g, '').trim();
+    }
+
+    function parseSpecializare(sp) {
+      if (!sp) return '';
+      const bMatch = sp.match(/<b>\([^)]*\)\s*([^<]*)<\/b>/i);
+      const specializare = bMatch ? bMatch[1].trim() : '';
+
+      const brSplit = sp.split(/<br\s*\/?>/i);
+      let limbi = '';
+      if (brSplit.length > 1) {
+        limbi = brSplit[1].trim();
+      }
+
+      if (specializare && limbi) {
+        return `${specializare} - ${limbi}`;
+      } else if (specializare) {
+        return specializare;
+      } else {
+        return sp.replace(/<[^>]+>/g, '').trim();
+      }
+    }
+
+    async function loadData() {
+      const results = await Promise.all(files.map(f => fetch(f).then(r => r.json())));
+      results.forEach((yearData, i) => {
+        rawDataPerYear[years[i]] = yearData;
+      });
+
+      // Construim rankedDataPerYear: sortam pe medie descrescator, pastram pozitia (index+1)
+      years.forEach(an => {
+        const yearData = rawDataPerYear[an].slice()
+          .map(c => ({ ...c, madmFloat: parseFloat(c.madm) }))
+          .filter(c => !isNaN(c.madmFloat));
+
+        yearData.sort((a,b) => b.madmFloat - a.madmFloat);
+
+        // Mapam fiecare candidat cu poziția in clasament (index+1)
+        rankedDataPerYear[an] = yearData.map((cand, index) => ({
+          ...cand,
+          rankingPos: index + 1,
+          liceu: extractLiceuFromH(cand.h).toLowerCase(),
+          specializare: parseSpecializare(cand.sp).toLowerCase()
+        }));
+
+        // Construim seturi liceu, specializari și harta liceu-an-specializari
+        yearData.forEach(cand => {
+          const liceu = extractLiceuFromH(cand.h);
+          const sp = parseSpecializare(cand.sp);
+
+          liceeSet.add(liceu);
+          specializariSet.add(sp);
+
+          if (!liceuAnSpecializariMap.has(liceu)) {
+            liceuAnSpecializariMap.set(liceu, new Map());
+          }
+          const anMap = liceuAnSpecializariMap.get(liceu);
+          if (!anMap.has(an)) {
+            anMap.set(an, new Set());
+          }
+          anMap.get(an).add(sp);
+        });
+      });
+
+      populateDropdown('liceuSelect', Array.from(liceeSet).sort());
+      populateDropdown('specializareSelect', Array.from(specializariSet).sort());
+
+      document.getElementById('liceuSelect').addEventListener('change', updateSpecializariDropdown);
+
+      applyFiltersAndDraw();
+    }
+
+    function populateDropdown(selectId, items) {
+      const select = document.getElementById(selectId);
+      select.length = 1; // păstrăm opțiunea default
+      items.forEach(item => {
+        const option = document.createElement('option');
+        option.value = item.toLowerCase();
+        option.textContent = item;
+        select.appendChild(option);
+      });
+    }
+
+    function updateSpecializariDropdown() {
+      const liceuSelect = document.getElementById('liceuSelect');
+      const specializareSelect = document.getElementById('specializareSelect');
+
+      const selectedLiceu = liceuSelect.value;
+
+      let specializariToShow = new Set();
+
+      if (selectedLiceu) {
+        const liceuOriginal = Array.from(liceeSet).find(l => l.toLowerCase() === selectedLiceu);
+        if (liceuOriginal && liceuAnSpecializariMap.has(liceuOriginal)) {
+          liceuAnSpecializariMap.get(liceuOriginal).forEach(spSet => {
+            spSet.forEach(sp => specializariToShow.add(sp));
+          });
+        }
+      } else {
+        specializariSet.forEach(sp => specializariToShow.add(sp));
+      }
+
+      const sortedSpecializari = Array.from(specializariToShow).sort();
+
+      specializareSelect.length = 1;
+      sortedSpecializari.forEach(sp => {
+        const option = document.createElement('option');
+        option.value = sp.toLowerCase();
+        option.textContent = sp;
+        specializareSelect.appendChild(option);
+      });
+    }
+
+    function addFilter() {
+      const liceuVal = document.getElementById('liceuSelect').value || null;
+      const specializareVal = document.getElementById('specializareSelect').value || null;
+
+      if (!liceuVal || !specializareVal) {
+        alert('Trebuie să selectezi liceul și specializarea pentru a adăuga un filtru.');
+        return;
+      }
+
+      const exists = activeFilters.some(f =>
+        f.liceu === liceuVal && f.specializare === specializareVal
+      );
+      if (exists) {
+        alert('Acest filtru este deja adăugat.');
+        return;
+      }
+
+      activeFilters.push({ liceu: liceuVal, specializare: specializareVal });
+      renderActiveFilters();
+      applyFiltersAndDraw();
+    }
+
+    function removeFilter(index) {
+      activeFilters.splice(index, 1);
+      renderActiveFilters();
+      applyFiltersAndDraw();
+    }
+
+    function clearFilters() {
+      activeFilters = [];
+      renderActiveFilters();
+      applyFiltersAndDraw();
+    }
+
+    function renderActiveFilters() {
+      const container = document.getElementById('activeFilters');
+      container.innerHTML = '';
+
+      if (activeFilters.length === 0) {
+        container.textContent = 'Niciun filtru activ.';
+        return;
+      }
+
+      activeFilters.forEach((filter, i) => {
+        const liceuOrig = Array.from(liceeSet).find(l => l.toLowerCase() === filter.liceu) || filter.liceu;
+        const spOrig = Array.from(specializariSet).find(s => s.toLowerCase() === filter.specializare) || filter.specializare;
+
+        const span = document.createElement('span');
+        span.textContent = `Liceu: ${liceuOrig} | Specializare: ${spOrig}`;
+        span.title = 'Click pentru a șterge filtrul';
+        span.onclick = () => removeFilter(i);
+        container.appendChild(span);
+      });
+    }
+
+    function applyFiltersAndDraw() {
+      const datasets = [];
+      const colorPalette = ['#ff6384', '#36a2eb', '#4bc0c0', '#9966ff', '#ff9f40', '#00a651', '#e6194B', '#3cb44b', '#ffe119', '#0082c8'];
+
+      activeFilters.forEach((filter, idx) => {
+        if (!filter.liceu || !filter.specializare) return;
+
+        const liceuOrig = Array.from(liceeSet).find(l => l.toLowerCase() === filter.liceu);
+        const spOrig = Array.from(specializariSet).find(s => s.toLowerCase() === filter.specializare);
+
+        const data = years.map(year => {
+          if (!rankedDataPerYear[year]) return null;
+
+          // Căutăm candidații care se potrivesc filtrului
+          const candidates = rankedDataPerYear[year].filter(cand =>
+            cand.liceu === filter.liceu && cand.specializare === filter.specializare
+          );
+
+          if (candidates.length === 0) return null;
+
+          // Ultimul admis are cea mai mică medie din lista candidatilor cu filtrele date
+          // Dar poziția trebuie luată din clasamentul original: luăm poziția maximă (ultimul admis)
+          // Aici ordinea e deja în rankedDataPerYear[year], deci ultimul admis este ultimul candidat în această listă
+
+          // Totuși, dacă mai mulți candidați au medii identice, luăm poziția maximă din clasament
+          // Pentru siguranță, luăm max rankingPos
+          const maxPos = Math.max(...candidates.map(c => c.rankingPos));
+          return maxPos;
+        });
+
+        datasets.push({
+          label: `${liceuOrig} | ${spOrig}`,
+          data,
+          borderColor: colorPalette[idx % colorPalette.length],
+          backgroundColor: colorPalette[idx % colorPalette.length],
+          fill: false,
+          borderWidth: 2,
+          tension: 0.2,
+          spanGaps: true
+        });
+      });
+
+      if (window.chartInstance) {
+        window.chartInstance.destroy();
+      }
+
+      const ctx = document.getElementById('rankingChart').getContext('2d');
+      window.chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: years,
+          datasets
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            title: {
+              display: true,
+              text: 'Poziția ultimului admis pe ani - liceu și specializare'
+            },
+            tooltip: {
+              mode: 'index',
+              intersect: false,
+              callbacks: {
+                label: ctx => {
+                  const val = ctx.parsed.y;
+                  return val === null ? 'N/A' : `Poziție: ${val}`;
+                }
+              }
+            },
+            legend: {
+              position: 'top',
+            }
+          },
+          interaction: {
+            mode: 'nearest',
+            axis: 'x',
+            intersect: false
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: 'Poziția în clasament (locul candidatului)'
+              }
+            },
+            x: {
+              title: {
+                display: true,
+                text: 'An'
+              },
+              ticks: {
+                maxRotation: 0
+              }
+            }
+          }
+        }
+      });
+    }
+
+    document.getElementById('addFilterBtn').addEventListener('click', addFilter);
+    document.getElementById('clearFiltersBtn').addEventListener('click', clearFilters);
+
+    // Init încărcare date și populare dropdown-uri
+    loadData();
+  </script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+</body>
+</html>

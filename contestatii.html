@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8" />
+  <title>Analiza contestații Română cu filtru</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 2rem; background: #f4f4f4; }
+    h1 { margin-bottom: 1rem; }
+    .stats { background: #fff; padding: 1rem; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+    canvas { margin-top: 2rem; background: #fff; padding: 1rem; border-radius: 10px; }
+  </style>
+</head>
+<body>
+  <h1>📊 Analiza contestații la română</h1>
+  <div class="stats" id="statistici"></div>
+
+  <canvas id="chartNote" width="800" height="400"></canvas>
+  <canvas id="chartDeviatie" width="800" height="400"></canvas>
+
+<script>
+  // Activează sau dezactivează filtrul pe interval 8-9 pentru nota inițială
+  const filterInterval = false;
+
+  fetch('note.json')
+    .then(response => response.json())
+    .then(data => {
+      let contested = data.filter(e => e.ra !== null);
+
+      if (filterInterval) {
+        contested = contested.filter(e => e.ri >= 8 && e.ri <= 9);
+      }
+
+      contested.sort((a,b) => a.ri - b.ri);
+
+      const labels = contested.map(e => e.name);
+      const riValues = contested.map(e => e.ri);
+      const raValues = contested.map(e => e.ra);
+      const deviation = contested.map(e => e.ra - e.ri);
+
+      // Statistici generale
+      const total = contested.length;
+      const crescut = contested.filter(e => e.ra > e.ri);
+      const scazut = contested.filter(e => e.ra < e.ri);
+      const neschimbat = contested.filter(e => e.ra === e.ri);
+      const mediaDiferenta = total > 0 ? (contested.reduce((acc, e) => acc + (e.ra - e.ri), 0) / total).toFixed(3) : 0;
+
+      const info = `
+        <p>Total contestații${filterInterval ? " (8 ≤ nota inițială ≤ 9)" : ""}: <strong>${total}</strong></p>
+        <p>Note crescute: <strong>${crescut.length}</strong></p>
+        <p>Note scăzute: <strong>${scazut.length}</strong></p>
+        <p>Fără modificare: <strong>${neschimbat.length}</strong></p>
+        <p>Diferență medie: <strong>${mediaDiferenta}</strong> puncte</p>
+      `;
+      document.getElementById("statistici").innerHTML = info;
+
+      // Grafic 1 - evoluție note (ri vs ra)
+      new Chart(document.getElementById('chartNote'), {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Nota inițială (ri)',
+              data: riValues,
+              borderColor: 'blue',
+              fill: false,
+              tension: 0.1
+            },
+            {
+              label: 'Nota după contestație (ra)',
+              data: raValues,
+              borderColor: 'green',
+              fill: false,
+              tension: 0.1
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            title: {
+              display: true,
+              text: 'Evoluția notelor la română (ri vs ra)'
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const idx = context.dataIndex;
+                  const ri = riValues[idx];
+                  const ra = raValues[idx];
+                  return [
+                    `Nota inițială: ${ri.toFixed(2)}`,
+                    `Nota după contestație: ${ra.toFixed(2)}`
+                  ];
+                }
+              }
+            }
+          }
+        }
+      });
+
+      // Grafic 2 - deviere față de nota inițială
+      new Chart(document.getElementById('chartDeviatie'), {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Diferență (ra - ri)',
+            data: deviation,
+            backgroundColor: deviation.map(v => v >= 0 ? 'green' : 'red')
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            title: {
+              display: true,
+              text: 'Devierea față de nota inițială (ra - ri)'
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const idx = context.dataIndex;
+                  const val = context.dataset.data[idx];
+                  const ri = riValues[idx];
+                  const ra = raValues[idx];
+                  return [
+                    `Diferență: ${val.toFixed(2)}`,
+                    `Inițial: ${ri.toFixed(2)}`,
+                    `Contestată: ${ra.toFixed(2)}`
+                  ];
+                }
+              }
+            }
+          },
+          scales: {
+            y: { beginAtZero: true }
+          }
+        }
+      });
+    })
+    .catch(error => {
+      document.getElementById("statistici").innerHTML = `<p style="color: red;">Eroare la încărcarea note.json: ${error}</p>`;
+    });
+</script>
+</body>
+</html>

@@ -99,7 +99,7 @@
       <option value="2022">2022</option>
       <option value="2023">2023</option>
       <option value="2024" selected>2024</option>
-      <option value="2025" disabled>2025</option>
+      <option value="2025" disabled>2022025</option>
     </select>
 
     <label for="average">Introdu media ta de admitere:</label>
@@ -162,35 +162,35 @@
       const inputAbs = inputAbsRaw === "" ? 10.00 : parseFloat(inputAbsRaw);
       const output = document.getElementById('results');
 
-      if (isNaN(input)) {
-        output.innerHTML = "<p style='color:red'>Te rugăm să introduci o medie validă.</p>";
+      if (isNaN(input) || input < 1 || input > 10) {
+        output.innerHTML = "<p style='color:red'>Te rugăm să introduci o medie validă (1-10).</p>";
         return;
       }
       if (isNaN(inputAbs) || inputAbs < 1 || inputAbs > 10) {
-        output.innerHTML = "<p style='color:red'>Te rugăm să introduci o medie de absolvire validă (1-10) sau să lași gol.</p>";
+        output.innerHTML = "<p style='color:red'>Te rugăm să introduci o medie de absolvire validă (1-10) sau să o lași necompletată.</p>";
         return;
       }
 
-      // Sortează descrescător după madm, apoi mabs
       const sorted = candidatesData
         .filter(e => !isNaN(parseFloat(e.madm)) && !isNaN(parseFloat(e.mabs)))
         .map(e => ({
           madm: parseFloat(e.madm),
           mabs: parseFloat(e.mabs),
           h: e.h,
-          sp: e.sp
+          sp: e.sp,
+          n: e.n,
+          nro: parseFloat(e.nro),
+          nmate: parseFloat(e.nmate)
         }))
         .sort((a, b) => {
           if (b.madm !== a.madm) return b.madm - a.madm;
           return b.mabs - a.mabs;
         });
 
-      // Pozitia elevului curent in clasament
       const pozitie = sorted.findIndex(e =>
         input > e.madm || (input === e.madm && inputAbs >= e.mabs)
       ) + 1;
 
-      // Grupam pe liceu+specializare
       const grouped = {};
       sorted.forEach(entry => {
         const key = entry.h + '|' + entry.sp;
@@ -201,7 +201,6 @@
         }
       });
 
-      // Filtrare licee unde ultima medie admisa e mai mica sau egala cu media introdusa
       const resultArray = Object.values(grouped)
         .filter(group => group.entries[group.entries.length - 1].madm <= input)
         .sort((a, b) => b.entries[b.entries.length - 1].madm - a.entries[a.entries.length - 1].madm);
@@ -211,37 +210,49 @@
         return;
       }
 
-
-    output.innerHTML = `
-      <p><b>Rezultate pentru media de admitere: ${input.toFixed(2)}</b></p>
-      <p><b>Media ta de absolvire considerată:</b> ${inputAbs.toFixed(2)}</p>
-      <p><b>Poziție estimativă în clasamentul general:</b> ${pozitie > 0 ? pozitie : 'sub ultima poziție'}</p>
-      <p><b>Total candidați:</b> ${sorted.length}</p>
-      <p><i>*Liceele de mai jos sunt ordonate descrescător după <b>ultima medie de intrare</b>.</i></p>
-    `;
-
-    resultArray.forEach(group => {
-      const primaMedie = group.entries[0];
-      const ultimaMedie = group.entries[group.entries.length - 1];
-
-      const pozMin = sorted.findIndex(e => e.madm === primaMedie.madm && e.mabs === primaMedie.mabs) + 1;
-      const pozMax = sorted.findIndex(e => e.madm === ultimaMedie.madm && e.mabs === ultimaMedie.mabs) + 1;
-
-      const div = document.createElement('div');
-      div.className = 'item';
-      div.innerHTML = `
-        <div><b>Liceu:</b> ${group.h}</div>
-        <div><b>Specializare:</b> ${group.sp}</div>
-        <div><b>Prima medie de intrare:</b> ${primaMedie.madm.toFixed(2)} (absolvire ${primaMedie.mabs.toFixed(2)})</div>
-        <div><b>Ultima medie de intrare:</b> ${ultimaMedie.madm.toFixed(2)} (absolvire ${ultimaMedie.mabs.toFixed(2)})</div>
-        <div><b>Poziții în clasament:</b> ${pozMin} - ${pozMax}</div>
+      output.innerHTML = `
+        <p><b>Rezultate pentru media de admitere: ${input.toFixed(2)}</b></p>
+        <p><b>Media ta de absolvire considerată:</b> ${inputAbs.toFixed(2)}</p>
+        <p><b>Poziție estimativă în clasamentul general:</b> ${pozitie > 0 ? pozitie : 'sub ultima poziție'}</p>
+        <p><b>Total candidați:</b> ${sorted.length}</p>
+        <p><i>*Liceele de mai jos sunt ordonate descrescător după <b>ultima medie de intrare</b>.</i></p>
       `;
-      output.appendChild(div);
-    });
 
+      resultArray.forEach(group => {
+        const primaMedie = group.entries[0];
+        const ultimaMedie = group.entries[group.entries.length - 1];
 
+        const pozMax = sorted.findIndex(e =>
+          e.madm === primaMedie.madm &&
+          e.mabs === primaMedie.mabs &&
+          e.h === group.h &&
+          e.sp === group.sp
+        ) + 1;
 
+        const pozMin = sorted.findIndex(e =>
+          e.madm === ultimaMedie.madm &&
+          e.mabs === ultimaMedie.mabs &&
+          e.h === group.h &&
+          e.sp === group.sp
+        ) + 1;
 
+        const div = document.createElement('div');
+        div.className = 'item';
+        div.innerHTML = `
+          <div><b>Liceu:</b> ${group.h}</div>
+          <div><b>Specializare:</b> ${group.sp}</div>
+          <div><b>Prima medie de intrare:</b> ${primaMedie.madm.toFixed(2)} (abs. ${primaMedie.mabs.toFixed(2)}) – 
+            <i>poziția ${pozMax}, ID: ${primaMedie.n}</i>
+            <span title="Română: ${primaMedie.nro}, Mate: ${primaMedie.nmate}"> 🛈</span>
+          </div>
+          <div><b>Ultima medie de intrare:</b> ${ultimaMedie.madm.toFixed(2)} (abs. ${ultimaMedie.mabs.toFixed(2)}) – 
+            <i>poziția ${pozMin}, ID: ${ultimaMedie.n}</i>
+            <span title="Română: ${ultimaMedie.nro}, Mate: ${ultimaMedie.nmate}"> 🛈</span>
+          </div>
+          <div><b>Poziții în clasament pentru acest liceu:</b> ${pozMax} - ${pozMin}</div>
+        `;
+        output.appendChild(div);
+      });
 
       output.scrollIntoView({ behavior: 'smooth' });
     }

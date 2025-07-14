@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8">
+  <title>Analiză Admitere 2024</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+      max-width: 1200px;
+      margin: auto;
+    }
+    input, button {
+      padding: 5px 10px;
+      margin: 10px 0;
+      font-size: 16px;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-bottom: 40px;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      text-align: left;
+      font-size: 14px;
+    }
+    h2 {
+      margin-top: 40px;
+      border-bottom: 2px solid #444;
+      padding-bottom: 5px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Analiză Admitere 2024</h1>
+
+  <label for="pozitie">Introduceți o poziție (ex: 500):</label><br/>
+  <input type="number" id="pozitie" value="723" />
+  <button onclick="analizeaza()">Analizează</button>
+
+  <h2>Licee complet ocupate</h2>
+  <table id="complete">
+    <thead>
+      <tr>
+        <th>Liceu + Specializare</th>
+        <th>Poziții ocupate</th>
+        <th>Locuri ocupate</th>
+        <th>Locuri libere</th>
+        <th>% Ocupare</th>
+        <th>Ultima medie</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <h2>Licee parțial ocupate</h2>
+  <table id="partial">
+    <thead>
+      <tr>
+        <th>Liceu + Specializare</th>
+        <th>Poziții ocupate</th>
+        <th>Locuri ocupate</th>
+        <th>Locuri libere</th>
+        <th>% Ocupare</th>
+        <th>Ultima medie</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <h2>Licee neocupate</h2>
+  <table id="neocupat">
+    <thead>
+      <tr>
+        <th>Liceu + Specializare</th>
+        <th>Poziții ocupate</th>
+        <th>Locuri ocupate</th>
+        <th>Locuri libere</th>
+        <th>% Ocupare</th>
+        <th>Ultima medie</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    let candidati = [];
+
+    fetch('candidates2024.json')
+      .then(response => response.json())
+      .then(data => {
+        candidati = data;
+        candidati.sort((a, b) => parseFloat(b.madm) - parseFloat(a.madm));
+      })
+      .catch(err => alert("Eroare la încărcarea fișierului candidates2024.json: " + err));
+
+    function analizeaza() {
+      const poz = parseInt(document.getElementById("pozitie").value);
+      if (isNaN(poz) || poz <= 0) {
+        alert("Introduceți o valoare validă (pozitivă)!");
+        return;
+      }
+
+      const grupe = {};
+
+      candidati.forEach((c, idx) => {
+        const cheie = c.h + " / " + c.sp;
+        if (!grupe[cheie]) grupe[cheie] = [];
+        grupe[cheie].push({ poz: idx + 1, medie: parseFloat(c.madm) });
+      });
+
+      const complet = [], partial = [], neocupat = [];
+
+      for (const liceu in grupe) {
+        const pozitii = grupe[liceu];
+        const capacitate = pozitii.length;
+        const pozitiiNum = pozitii.map(p => p.poz);
+        const prima = Math.min(...pozitiiNum);
+        const ultima = Math.max(...pozitiiNum);
+        const ocupate = pozitii.filter(p => p.poz < poz).length;
+        const libere = capacitate - ocupate;
+        const procent = ((ocupate / capacitate) * 100).toFixed(2) + "%";
+        const ultimaMedie = pozitii.find(p => p.poz === ultima)?.medie.toFixed(2) ?? "-";
+
+        const info = [liceu, `${prima} - ${ultima}`, ocupate, libere, procent, ultimaMedie];
+
+        if (ocupate === capacitate) {
+          complet.push(info);
+        } else if (ocupate > 0 && ocupate < capacitate) {
+          partial.push(info);
+        } else {
+          neocupat.push(info);
+        }
+      }
+
+      // sortează descrescător după ultima medie de admitere
+      complet.sort((a, b) => parseFloat(b[5]) - parseFloat(a[5]));
+      partial.sort((a, b) => parseFloat(b[5]) - parseFloat(a[5]));
+      neocupat.sort((a, b) => parseFloat(b[5]) - parseFloat(a[5]));
+
+      afiseaza("complete", complet);
+      afiseaza("partial", partial);
+      afiseaza("neocupat", neocupat);
+    }
+
+    function afiseaza(id, lista) {
+      const tbody = document.getElementById(id).querySelector("tbody");
+      tbody.innerHTML = "";
+      lista.forEach(([liceu, pozitii, ocupate, libere, procent, medie]) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${liceu}</td>
+          <td>${pozitii}</td>
+          <td>${ocupate}</td>
+          <td>${libere}</td>
+          <td>${procent}</td>
+          <td>${medie}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+  </script>
+</body>
+</html>
